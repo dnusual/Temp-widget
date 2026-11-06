@@ -595,7 +595,8 @@ async function chooseStations(keys) {
 
   if (chosen.length > 1) {
     const order = new Alert();
-    order.title = "Hvilken skal stå først?";
+    order.title = "Hvilken er hjemme?";
+    order.message = "Den står først i widgeten, med hus-ikon. De andre får hytte-ikon.";
     chosen.forEach((s) => order.addAction(s.label));
     const first = await order.presentSheet();
     if (first > 0) chosen.unshift(chosen.splice(first, 1)[0]);

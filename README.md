@@ -63,7 +63,7 @@ Trykk på **Temp** i Scriptable. Den spør om:
 1. **Application Key** og **API Key** fra steg 1 → lim inn → *Lagre*.
 2. **Hver stasjon** den finner på kontoen → gi den et kort navn (f.eks. **Hjemme** og
    **Hytta**) og trykk *Vis*.
-3. **Hvilken som skal stå først.**
+3. **Hvilken som er hjemme.** Den står først med hus-ikon, hytta får hytte-ikon.
 
 Deretter får du en meny der du kan se hvordan widgeten blir i ulike størrelser.
 Nøklene lagres i iPhonens nøkkelring, ikke i selve scriptet.
@@ -114,7 +114,12 @@ nøkler, og lager `dev/preview.html`:
 
 ```sh
 node dev/simulate.mjs
+
+# Mot de ekte stasjonene (nøklene legges aldri i repoet):
+ECOWITT_APP_KEY=… ECOWITT_API_KEY=… node dev/simulate.mjs --live
 ```
+
+Bak en HTTP-proxy trenger Node i tillegg `NODE_USE_ENV_PROXY=1`.
 
 Data hentes fra Ecowitt API v3 (`api.ecowitt.net/api/v3/device/list` og
 `device/real_time`, i °C).

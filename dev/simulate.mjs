@@ -2,6 +2,8 @@
 // og falske svar fra Ecowitt. Brukes bare til testing under utvikling.
 //
 //   node dev/simulate.mjs            → kjører alle scenarier og skriver dev/preview.html
+//   ECOWITT_APP_KEY=… ECOWITT_API_KEY=… node dev/simulate.mjs --live
+//                                    → kjører mot de ekte stasjonene i stedet
 //
 // Scenariene sjekker at scriptet kjører uten feil for alle widget-størrelser,
 // at feil hos Ecowitt håndteres, og at bufret data brukes når hytta er offline.
@@ -109,6 +111,10 @@ function makeEnv({ family, runsInWidget, keychain, responses, alerts = [], param
     constructor(url) { this.url = url; }
     async loadJSON() {
       requests.push(this.url);
+      if (responses === "live") {
+        const res = await fetch(this.url, { signal: AbortSignal.timeout((this.timeoutInterval || 60) * 1000) });
+        return res.json();
+      }
       const u = new URL(this.url);
       const handler = responses[u.pathname.replace("/api/v3/", "")];
       assert.ok(handler, `Uventet kall: ${u.pathname}`);
@@ -227,8 +233,45 @@ const APP = "tempwidget.ecowitt.applicationKey";
 const KEY = "tempwidget.ecowitt.apiKey";
 const STATIONS = "tempwidget.ecowitt.stations";
 
+const texts = (el) => (el.kind === "text" ? [el.text] : (el.children || []).flatMap(texts));
+
+function writePreview() {
+  const html = `<!doctype html><meta charset="utf-8"><title>Temp-widget forhåndsvisning</title>
+<style>body{margin:0;padding:24px;background:linear-gradient(160deg,#3b5b8c,#1b2a44);font-family:system-ui;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+figure{margin:0}figcaption{color:#dfe7f3;font-size:12px;margin-top:6px}</style>${previews.join("\n")}`;
+  fs.writeFileSync(path.join(here, "preview.html"), html);
+}
+
 const docs = fs.mkdtempSync(path.join(os.tmpdir(), "tempwidget-"));
 const previews = [];
+
+if (process.argv.includes("--live")) {
+  const appKey = process.env.ECOWITT_APP_KEY;
+  const apiKey = process.env.ECOWITT_API_KEY;
+  assert.ok(appKey && apiKey, "Sett ECOWITT_APP_KEY og ECOWITT_API_KEY");
+  // Førstegangsoppsett som i appen: alle stasjoner vises, med Ecowitt-navnene.
+  const keychain = {};
+  const devices = await (await fetch(`https://api.ecowitt.net/api/v3/device/list?application_key=${appKey}&api_key=${apiKey}`)).json();
+  assert.equal(devices.code, 0, `device/list: ${devices.msg}`);
+  const n = devices.data.list.length;
+  await run({
+    runsInWidget: false, keychain, docs, responses: "live",
+    alerts: [
+      { fields: [appKey, apiKey], choice: 0 },
+      ...Array.from({ length: n }, () => ({ choice: 0 })),
+      ...(n > 1 ? [{ choice: 0 }] : []),
+      { choice: -1 },
+    ],
+  });
+  console.log("Stasjoner:", JSON.parse(keychain[STATIONS]).map((s) => s.label).join(", "));
+  for (const family of Object.keys(SIZES)) {
+    const ctx = await run({ runsInWidget: true, family, keychain, docs, responses: "live" });
+    console.log(`${family}: ${texts(ctx.widget).join(" | ")}`);
+    previews.push(renderWidget(ctx.widget, family, `${family} (ekte data)`));
+  }
+  writePreview();
+  process.exit(0);
+}
 
 const normal = {
   "device/list": () => DEVICES,
@@ -244,14 +287,14 @@ const normal = {
       { expectTitle: /nøkler/, fields: ["  app-123 ", "api-456"], choice: 0 },
       { expectTitle: /GW2000/, fields: ["Hjemme"], choice: 0 },
       { expectTitle: /Hytta/, fields: ["Hytta"], choice: 0 },
-      { expectTitle: /først/, choice: 0 },
+      { expectTitle: /hjemme/, choice: 1 }, // Hytta er hjemme → skal flyttes først
       { expectTitle: /Temp-widget/, choice: 1 }, // vis middels
       { expectTitle: /Temp-widget/, choice: -1 }, // ferdig
     ],
   });
   assert.equal(keychain[APP], "app-123", "nøkkel skal trimmes");
   const saved = JSON.parse(keychain[STATIONS]);
-  assert.deepEqual(saved.map((s) => s.label), ["Hjemme", "Hytta"]);
+  assert.deepEqual(saved.map((s) => s.label), ["Hytta", "Hjemme"]);
   assert.deepEqual(saved.map((s) => s.icon), ["house.fill", "house.lodge.fill"]);
   assert.equal(ctx.presented[0].size, "medium");
   assert.ok(ctx.requests.some((u) => u.includes("temp_unitid=1")), "skal be om °C");
@@ -266,8 +309,6 @@ const configured = () => ({
     { id: "AA:BB:CC:00:00:02", label: "Hytta", mac: "AA:BB:CC:00:00:02", icon: "house.lodge.fill" },
   ]),
 });
-
-const texts = (el) => (el.kind === "text" ? [el.text] : (el.children || []).flatMap(texts));
 
 // 2. Alle widget-størrelser med normale data
 for (const family of Object.keys(SIZES)) {
@@ -344,8 +385,5 @@ for (const family of Object.keys(SIZES)) {
   console.log("✓ CH1-sensor som reserve");
 }
 
-const html = `<!doctype html><meta charset="utf-8"><title>Temp-widget forhåndsvisning</title>
-<style>body{margin:0;padding:24px;background:linear-gradient(160deg,#3b5b8c,#1b2a44);font-family:system-ui;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
-figure{margin:0}figcaption{color:#dfe7f3;font-size:12px;margin-top:6px}</style>${previews.join("\n")}`;
-fs.writeFileSync(path.join(here, "preview.html"), html);
+writePreview();
 console.log("\nAlle scenarier OK. Forhåndsvisning: dev/preview.html");
