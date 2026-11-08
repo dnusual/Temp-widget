@@ -17,6 +17,22 @@ iOS sine egne, og widgeten følger lys/mørk modus.*
   Da vises siste kjente verdi i stedet for en tom widget.
 - Trykk på widgeten for å åpne en større oversikt.
 
+## Fire utseender å velge mellom
+
+![De fire utseendene i liten og middels størrelse](docs/utseender.png)
+
+| Utseende | Passer når |
+| --- | --- |
+| **Lys** | Du vil ha litt av alt: temperatur, fukt, innetemperatur og hvor fersk målingen er. |
+| **Stor skrift** | Tallene skal være så store som mulig, svart på hvitt (hvitt på svart i mørk modus). |
+| **Farge** | Du vil se på fargen om det er kaldt eller varmt: blått under null, grønt rundt 15°, oransje/rødt når det er varmt. |
+| **Tabell** | Ute og inne i hver sin kolonne, én rad per sted. Oversiktlig med flere stasjoner. |
+
+Utseendet velges i Scriptable: trykk på **Temp** → **Velg utseende**. Du får se hvert av
+dem med ekte tall før du bestemmer deg. Valget gjelder alle widgetene, men kan overstyres
+per widget med parameteren (se under). Låseskjerm-widgetene er alltid svart/hvite og
+påvirkes ikke.
+
 ## Hvorfor Scriptable og ikke en «ekte» app?
 
 Widgeten kjører i den gratis appen **Scriptable** fra App Store. Det gjør at den kan
@@ -84,11 +100,15 @@ Hold inne låseskjermen → **Tilpass** → **Låseskjerm** → trykk på widget
 velg Scriptable. Den **rektangulære** viser begge stasjonene, den **runde** viser én.
 Velg *Temp* som script på samme måte som over.
 
-### Vise bare én stasjon
+### Vise bare én stasjon, eller et annet utseende på én widget
 
-Skriv navnet på stasjonen (f.eks. `Hytta`) i feltet **Parameter** når du redigerer
-widgeten. Fint for den runde låseskjerm-widgeten, eller for å ha to små widgeter ved
-siden av hverandre.
+Skriv i feltet **Parameter** når du redigerer widgeten:
+
+- `Hytta` → viser bare den stasjonen. Fint for den runde låseskjerm-widgeten, eller for å
+  ha to små widgeter ved siden av hverandre.
+- `farge` (eller `lys`, `stor skrift`, `tabell`) → bruker det utseendet på akkurat denne
+  widgeten, uansett hva som er valgt i menyen.
+- `Hytta, farge` → begge deler.
 
 ---
 
@@ -104,13 +124,13 @@ siden av hverandre.
 | Oppdaterer sjelden | iOS bestemmer hvor ofte widgeter oppdateres, typisk hvert 15.–30. minutt. Trykk på widgeten for ferske tall. |
 
 Innstillinger som hvor fort data regnes som gamle og fargegrensene står øverst i
-`TempWidget.js` under `SETTINGS`.
+`TempWidget.js` under `SETTINGS`. Fargeskalaen for utseendet «Farge» står i `FARGE_STOPS`.
 
 ## Utvikling
 
 `dev/simulate.mjs` kjører scriptet på PC med en etterligning av Scriptable og falske
-Ecowitt-svar. Den sjekker oppsett, alle widget-størrelser, offline-hytte, gamle data og feil
-nøkler, og lager `dev/preview.html`:
+Ecowitt-svar. Den sjekker oppsett, alle utseender i alle widget-størrelser, offline-hytte, gamle data
+og feil nøkler, og lager `dev/preview.html`:
 
 ```sh
 node dev/simulate.mjs

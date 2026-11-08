@@ -12,9 +12,14 @@
  * Application Key og API Key fra ecowitt.net. Deretter henter scriptet
  * stasjonene automatisk, og du kan gi dem navn (f.eks. «Hjemme» og «Hytta»).
  *
+ * Utseende (Lys, Stor skrift, Farge, Tabell) velges i menyen når scriptet
+ * kjøres i appen.
+ *
  * Widget-parameter (valgfritt, settes ved å holde inne widgeten → Rediger):
- *   tomt     → viser alle valgte stasjoner
- *   «Hytta»  → viser bare stasjonen med det navnet
+ *   tomt            → viser alle valgte stasjoner i valgt utseende
+ *   «Hytta»         → viser bare stasjonen med det navnet
+ *   «farge»         → bruker utseendet «Farge» på akkurat denne widgeten
+ *   «Hytta, stor»   → begge deler
  */
 
 // ---------------------------------------------------------------------------
@@ -40,6 +45,7 @@ const API = "https://api.ecowitt.net/api/v3";
 const KC_APP_KEY = "tempwidget.ecowitt.applicationKey";
 const KC_API_KEY = "tempwidget.ecowitt.apiKey";
 const KC_STATIONS = "tempwidget.ecowitt.stations";
+const KC_STYLE = "tempwidget.style";
 const CACHE_FILE = "tempwidget-cache.json";
 
 const COLORS = {
@@ -83,6 +89,25 @@ function getStations() {
 
 function saveStations(list) {
   Keychain.set(KC_STATIONS, JSON.stringify(list));
+}
+
+/** Utseende på hjemskjerm-widgeten. Velges i menyen i appen. */
+const STYLES = {
+  lys: { name: "Lys", description: "Lyst kort med to kolonner, fukt og innetemperatur." },
+  stor: { name: "Stor skrift", description: "Bare temperaturene, så store som mulig. Lett å lese på avstand." },
+  farge: { name: "Farge", description: "Hver stasjon får en farge etter hvor kaldt eller varmt det er." },
+  tabell: { name: "Tabell", description: "Ute og inne i hver sin kolonne, én rad per sted." },
+};
+const DEFAULT_STYLE = "lys";
+
+function getStyle() {
+  if (!Keychain.contains(KC_STYLE)) return DEFAULT_STYLE;
+  const style = Keychain.get(KC_STYLE);
+  return STYLES[style] ? style : DEFAULT_STYLE;
+}
+
+function saveStyle(style) {
+  Keychain.set(KC_STYLE, style);
 }
 
 function cachePath() {
@@ -131,6 +156,15 @@ async function apiGet(path, params) {
     throw err;
   }
   return json;
+}
+
+function friendlyError(e) {
+  const msg = (e && e.message) || String(e);
+  if (e && e.code !== undefined) return msg; // allerede oversatt Ecowitt-feil
+  if (/timed out|fetch failed|offline|network|internet|could not connect|hostname|cancelled/i.test(msg)) {
+    return "Ingen nettforbindelse";
+  }
+  return msg;
 }
 
 function explainError(code, msg) {
@@ -250,7 +284,7 @@ async function loadAll(keys, stations) {
         return { station, reading, error: null, fromCache: false };
       } catch (e) {
         const cached = cache[station.id] || null;
-        return { station, reading: cached, error: e.message || String(e), fromCache: !!cached };
+        return { station, reading: cached, error: friendlyError(e), fromCache: !!cached };
       }
     })
   );
@@ -332,8 +366,36 @@ function statusLine(result) {
   return { text: formatAge(age), color: COLORS.muted };
 }
 
+function tempText(parent, result, size, color) {
+  const r = result.reading;
+  const stale = !r || result.error || isStale(r);
+  const t = parent.addText(formatTemp(r ? r.temp : null));
+  t.font = Font.boldRoundedSystemFont(size);
+  t.textColor = stale ? COLORS.stale : color || tempColor(r && r.temp, COLORS.text);
+  t.minimumScaleFactor = 0.5;
+  t.lineLimit = 1;
+  return t;
+}
+
+function smallText(parent, text, size, color, weight) {
+  const t = parent.addText(text);
+  t.font = weight === "semibold" ? Font.semiboldSystemFont(size) : Font.mediumSystemFont(size);
+  t.textColor = color;
+  t.lineLimit = 1;
+  return t;
+}
+
+function indoorText(r, decimals) {
+  return r && r.indoor !== null && r.indoor !== undefined ? `inne ${formatTemp(r.indoor, decimals)}` : null;
+}
+
+// ---------------------------------------------------------------------------
+// Utseende «Lys»
+// ---------------------------------------------------------------------------
+
 /** Liten widget: stasjonene under hverandre. */
-function buildSmall(widget, results) {
+function buildLysSmall(widget, results) {
+  widget.backgroundColor = COLORS.bg;
   widget.setPadding(12, 14, 12, 14);
   const shown = results.slice(0, 2);
   shown.forEach((result, i) => {
@@ -345,18 +407,10 @@ function buildSmall(widget, results) {
     const row = widget.addStack();
     row.layoutHorizontally();
     row.bottomAlignContent();
-    const temp = row.addText(formatTemp(r ? r.temp : null));
-    temp.font = Font.boldRoundedSystemFont(shown.length === 1 ? 44 : 30);
-    temp.textColor = stale ? COLORS.stale : tempColor(r && r.temp, COLORS.text);
-    temp.minimumScaleFactor = 0.6;
-    temp.lineLimit = 1;
+    tempText(row, result, shown.length === 1 ? 44 : 30);
     row.addSpacer();
-    if (r && r.indoor !== null && r.indoor !== undefined) {
-      const indoor = row.addText(`inne ${formatTemp(r.indoor, 0)}`);
-      indoor.font = Font.mediumSystemFont(11);
-      indoor.textColor = COLORS.muted;
-      indoor.lineLimit = 1;
-    }
+    const indoor = indoorText(r, 0);
+    if (indoor) smallText(row, indoor, 11, COLORS.muted);
     if (shown.length === 1 || stale) {
       const s = statusLine(result);
       const t = widget.addText(s.text);
@@ -368,7 +422,8 @@ function buildSmall(widget, results) {
 }
 
 /** Middels / stor widget: stasjonene side om side med litt mer detalj. */
-function buildMedium(widget, results, large) {
+function buildLysMedium(widget, results, large) {
+  widget.backgroundColor = COLORS.bg;
   widget.setPadding(14, 16, 14, 16);
   const columns = widget.addStack();
   columns.layoutHorizontally();
@@ -386,29 +441,19 @@ function buildMedium(widget, results, large) {
     const col = columns.addStack();
     col.layoutVertically();
     const r = result.reading;
-    const stale = !r || result.error || isStale(r);
 
     addLabelRow(col, result, i, large ? 16 : 13, COLORS.muted);
     col.addSpacer(large ? 6 : 2);
-
-    const temp = col.addText(formatTemp(r ? r.temp : null));
-    temp.font = Font.boldRoundedSystemFont(large ? 56 : 40);
-    temp.textColor = stale ? COLORS.stale : tempColor(r && r.temp, COLORS.text);
-    temp.minimumScaleFactor = 0.5;
-    temp.lineLimit = 1;
+    tempText(col, result, large ? 56 : 40);
 
     const details = [];
     if (r && r.humidity !== null) details.push(`${Math.round(r.humidity)} % fukt`);
     if (large && r && r.feelsLike !== null && Math.abs(r.feelsLike - r.temp) >= 1) {
       details.push(`føles ${formatTemp(r.feelsLike, 0)}`);
     }
-    if (r && r.indoor !== null) details.push(`inne ${formatTemp(r.indoor)}`);
-    details.forEach((d) => {
-      const t = col.addText(d);
-      t.font = Font.mediumSystemFont(large ? 14 : 12);
-      t.textColor = COLORS.muted;
-      t.lineLimit = 1;
-    });
+    const indoor = indoorText(r, 1);
+    if (indoor) details.push(indoor);
+    details.forEach((d) => smallText(col, d, large ? 14 : 12, COLORS.muted));
 
     col.addSpacer(large ? 8 : 4);
     const s = statusLine(result);
@@ -419,6 +464,246 @@ function buildMedium(widget, results, large) {
     col.addSpacer();
   });
   if (shown.length === 1) columns.addSpacer();
+}
+
+// ---------------------------------------------------------------------------
+// Utseende «Stor skrift»: svart/hvitt, bare det viktigste, størst mulig tall
+// ---------------------------------------------------------------------------
+
+const STOR = {
+  bg: Color.dynamic(new Color("#FFFFFF"), new Color("#000000")),
+  text: Color.dynamic(new Color("#000000"), new Color("#FFFFFF")),
+  muted: Color.dynamic(new Color("#4A5058"), new Color("#B5BCC6")),
+};
+
+function buildStor(widget, results, family) {
+  widget.backgroundColor = STOR.bg;
+  const large = family === "large" || family === "extraLarge";
+  const small = family === "small";
+  widget.setPadding(small ? 10 : 14, small ? 12 : 18, small ? 10 : 14, small ? 12 : 18);
+
+  const shown = results.slice(0, small ? 2 : large ? 4 : 2);
+  const container = small || large ? widget : widget.addStack();
+  if (!small && !large) {
+    container.layoutHorizontally();
+    container.centerAlignContent();
+  }
+
+  shown.forEach((result, i) => {
+    if (i > 0) container.addSpacer(small ? null : large ? 10 : 14);
+    const block = container.addStack();
+    block.layoutVertically();
+    const r = result.reading;
+    const stale = !r || result.error || isStale(r);
+
+    addLabelRow(block, result, i, small ? 13 : large ? 20 : 15, STOR.muted);
+
+    const row = block.addStack();
+    row.layoutHorizontally();
+    row.bottomAlignContent();
+    const t = tempText(row, result, small ? 40 : large ? 76 : 42, STOR.text);
+    if (stale) t.textColor = COLORS.stale;
+    row.addSpacer();
+
+    const indoor = indoorText(r, 0);
+    if (indoor && large) {
+      const side = row.addStack();
+      side.layoutVertically();
+      side.bottomAlignContent();
+      smallText(side, "inne", 15, STOR.muted);
+      smallText(side, indoor.replace("inne ", ""), 30, STOR.muted).font = Font.boldRoundedSystemFont(30);
+    } else if (indoor) {
+      smallText(block, indoor, small ? 12 : 15, STOR.muted);
+    }
+
+    if (stale || large) {
+      const s = statusLine(result);
+      const status = block.addText(s.text);
+      status.font = Font.systemFont(small ? 10 : large ? 13 : 11);
+      status.textColor = stale ? s.color : STOR.muted;
+      status.lineLimit = 1;
+    }
+  });
+  if (!small && !large) container.addSpacer();
+}
+
+// ---------------------------------------------------------------------------
+// Utseende «Farge»: bakgrunnen følger temperaturen
+// ---------------------------------------------------------------------------
+
+const FARGE_STOPS = [
+  [-15, "#1E3A8A"],
+  [0, "#2D6FD2"],
+  [8, "#2A9DB8"],
+  [16, "#3E9F5B"],
+  [24, "#E3962B"],
+  [32, "#D23F38"],
+];
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(rgb) {
+  return "#" + rgb.map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0")).join("");
+}
+
+function mix(a, b, f) {
+  return a.map((v, i) => v + (b[i] - v) * f);
+}
+
+function colorForTemp(t) {
+  if (t === null || t === undefined) return "#5B6472";
+  if (t <= FARGE_STOPS[0][0]) return FARGE_STOPS[0][1];
+  for (let i = 1; i < FARGE_STOPS.length; i++) {
+    const [t1, c1] = FARGE_STOPS[i];
+    const [t0, c0] = FARGE_STOPS[i - 1];
+    if (t <= t1) return rgbToHex(mix(hexToRgb(c0), hexToRgb(c1), (t - t0) / (t1 - t0)));
+  }
+  return FARGE_STOPS[FARGE_STOPS.length - 1][1];
+}
+
+function tempGradient(t) {
+  const top = hexToRgb(colorForTemp(t));
+  const bottom = mix(top, [0, 0, 0], 0.22);
+  const g = new LinearGradient();
+  g.colors = [new Color(rgbToHex(top)), new Color(rgbToHex(bottom))];
+  g.locations = [0, 1];
+  g.startPoint = new Point(0, 0);
+  g.endPoint = new Point(0.3, 1);
+  return g;
+}
+
+function buildFarge(widget, results, family) {
+  const large = family === "large" || family === "extraLarge";
+  const small = family === "small";
+  const white = new Color("#FFFFFF");
+  const faint = new Color("#FFFFFF", 0.78);
+
+  // Flere stasjoner får hver sin flate; én stasjon fyller hele widgeten.
+  const shown = results.slice(0, small ? 2 : large ? 4 : 2);
+  if (shown.length === 1) {
+    widget.backgroundGradient = tempGradient(shown[0].reading && shown[0].reading.temp);
+  } else {
+    widget.backgroundColor = Color.dynamic(new Color("#E9EEF4"), new Color("#0E1115"));
+  }
+  const gap = 6;
+  widget.setPadding(shown.length === 1 ? 14 : gap, shown.length === 1 ? 16 : gap, shown.length === 1 ? 14 : gap, shown.length === 1 ? 16 : gap);
+
+  const container = small || large || shown.length === 1 ? widget : widget.addStack();
+  if (container !== widget) {
+    container.layoutHorizontally();
+    container.topAlignContent();
+  }
+
+  shown.forEach((result, i) => {
+    if (i > 0) container.addSpacer(gap);
+    const r = result.reading;
+    const stale = !r || result.error || isStale(r);
+    const tile = container.addStack();
+    tile.layoutVertically();
+    tile.setPadding(small ? 8 : 12, small ? 10 : 14, small ? 8 : 12, small ? 10 : 14);
+    if (shown.length > 1) {
+      tile.backgroundGradient = tempGradient(r && r.temp);
+      tile.cornerRadius = 14;
+    }
+
+    addLabelRow(tile, result, i, small ? 12 : large ? 17 : 14, faint);
+    if (!small) tile.addSpacer(2);
+
+    const row = tile.addStack();
+    row.layoutHorizontally();
+    row.bottomAlignContent();
+    tempText(row, result, small ? 30 : large ? 60 : 40, white);
+    row.addSpacer();
+    const indoor = indoorText(r, small ? 0 : 1);
+    const wide = large || shown.length === 1;
+    if (indoor && !(!small && !wide)) smallText(row, indoor, small ? 11 : large ? 16 : 13, faint);
+    if (!small) {
+      tile.addSpacer(2);
+      if (indoor && !wide) smallText(tile, indoor, 13, faint);
+      const parts = [];
+      if (r && r.humidity !== null && (!stale || wide)) parts.push(`${Math.round(r.humidity)} % fukt`);
+      const s = statusLine(result);
+      parts.push(s.text);
+      smallText(tile, parts.join(" · "), large ? 13 : 11, stale ? new Color("#FFE2B8") : faint);
+    } else if (stale) {
+      smallText(tile, statusLine(result).text, 10, new Color("#FFE2B8"));
+    }
+    if (!small) tile.addSpacer();
+  });
+  if (container !== widget && shown.length === 1) container.addSpacer();
+}
+
+// ---------------------------------------------------------------------------
+// Utseende «Tabell»: ute og inne i hver sin kolonne
+// ---------------------------------------------------------------------------
+
+function cell(parent, width, align) {
+  const c = parent.addStack();
+  c.layoutHorizontally();
+  c.bottomAlignContent();
+  c.size = new Size(width, 0);
+  if (align === "right") c.addSpacer();
+  return c;
+}
+
+function buildTabell(widget, results, family) {
+  widget.backgroundColor = COLORS.bg;
+  const large = family === "large" || family === "extraLarge";
+  const small = family === "small";
+  widget.setPadding(small ? 12 : 14, small ? 12 : 16, small ? 12 : 14, small ? 12 : 16);
+  const shown = results.slice(0, small ? 3 : large ? 5 : 3);
+
+  const colW = small ? 40 : large ? 104 : 88;
+  const numSize = small ? 20 : large ? 32 : 28;
+  const nameSize = small ? 12 : large ? 18 : 15;
+
+  const header = widget.addStack();
+  header.layoutHorizontally();
+  header.addSpacer();
+  smallText(cell(header, colW, "right"), "Ute", small ? 10 : large ? 14 : 12, COLORS.muted, "semibold");
+  smallText(cell(header, colW, "right"), "Inne", small ? 10 : large ? 14 : 12, COLORS.muted, "semibold");
+  widget.addSpacer(small ? 4 : large ? 10 : 6);
+
+  shown.forEach((result, i) => {
+    if (i > 0) {
+      widget.addSpacer(small ? 4 : large ? 8 : 5);
+      const line = widget.addStack();
+      line.backgroundColor = COLORS.divider;
+      line.size = new Size(0, 1);
+      widget.addSpacer(small ? 4 : large ? 8 : 5);
+    }
+    const r = result.reading;
+    const stale = !r || result.error || isStale(r);
+    const row = widget.addStack();
+    row.layoutHorizontally();
+    row.centerAlignContent();
+
+    const name = row.addStack();
+    name.layoutVertically();
+    addLabelRow(name, result, i, nameSize, COLORS.text);
+    const s = statusLine(result);
+    if (large || stale || result.error) {
+      const st = name.addText(s.text);
+      st.font = Font.systemFont(small ? 9 : large ? 12 : 10);
+      st.textColor = s.color;
+      st.lineLimit = 1;
+      if (large && r && r.humidity !== null && !stale) smallText(name, `${Math.round(r.humidity)} % fukt`, 12, COLORS.muted);
+    }
+    row.addSpacer();
+
+    const ute = tempText(cell(row, colW, "right"), result, numSize);
+    if (small) ute.text = formatTemp(r ? r.temp : null, 0);
+    const indoor = indoorText(r, large ? 1 : 0);
+    const t = cell(row, colW, "right").addText(indoor ? indoor.replace("inne ", "") : "–");
+    t.font = Font.boldRoundedSystemFont(numSize);
+    t.textColor = stale ? COLORS.stale : COLORS.text;
+    t.lineLimit = 1;
+    t.minimumScaleFactor = 0.5;
+  });
+  widget.addSpacer();
 }
 
 /** Låseskjerm, rektangulær: én linje per stasjon. */
@@ -491,31 +776,44 @@ function buildMessageWidget(title, message) {
   return widget;
 }
 
-function buildWidget(results, family) {
+function buildWidget(results, family, style) {
   const widget = new ListWidget();
   widget.refreshAfterDate = new Date(Date.now() + SETTINGS.refreshMinutes * 60000);
 
   // Trykk på widgeten åpner en større oversikt.
   widget.url = `scriptable:///run/${encodeURIComponent(Script.name())}?view=details`;
 
+  // Låseskjermen er alltid svart/hvit, så utseendet gjelder bare hjemskjermen.
   if (family === "accessoryRectangular") buildRectangular(widget, results);
   else if (family === "accessoryInline") buildInline(widget, results);
   else if (family === "accessoryCircular") buildCircular(widget, results);
-  else {
-    widget.backgroundColor = COLORS.bg;
-    if (family === "small") buildSmall(widget, results);
-    else buildMedium(widget, results, family === "large" || family === "extraLarge");
-  }
+  else if (style === "stor") buildStor(widget, results, family);
+  else if (style === "farge") buildFarge(widget, results, family);
+  else if (style === "tabell") buildTabell(widget, results, family);
+  else if (family === "small") buildLysSmall(widget, results);
+  else buildLysMedium(widget, results, family === "large" || family === "extraLarge");
   return widget;
 }
 
-function filterByParameter(stations, parameter) {
-  const p = (parameter || "").trim().toLowerCase();
-  if (!p) return stations;
-  const hits = stations.filter((s) => s.label.toLowerCase() === p);
-  if (hits.length) return hits;
-  const partial = stations.filter((s) => s.label.toLowerCase().includes(p));
-  return partial.length ? partial : stations;
+/**
+ * Tolker widget-parameteren. Den kan inneholde et stasjonsnavn, et utseende,
+ * eller begge adskilt med komma: «Hytta», «farge», «Hytta, stor skrift».
+ */
+function parseParameter(stations, parameter, defaultStyle) {
+  let style = defaultStyle;
+  let shown = stations;
+  const tokens = (parameter || "").split(/[,;]/).map((t) => t.trim().toLowerCase()).filter(Boolean);
+  for (const token of tokens) {
+    const styleId = Object.keys(STYLES).find((id) => id === token || STYLES[id].name.toLowerCase() === token);
+    if (styleId) {
+      style = styleId;
+      continue;
+    }
+    const exact = stations.filter((s) => s.label.toLowerCase() === token);
+    const partial = exact.length ? exact : stations.filter((s) => s.label.toLowerCase().includes(token));
+    if (partial.length) shown = partial;
+  }
+  return { style, stations: shown };
 }
 
 // ===========================================================================
@@ -617,12 +915,46 @@ async function ensureSetup() {
   return { keys, stations };
 }
 
-async function preview(keys, stations, family) {
+async function preview(keys, stations, family, style) {
   const results = await loadAll(keys, stations);
-  const widget = buildWidget(results, family);
+  const widget = buildWidget(results, family, style || getStyle());
   if (family === "small") await widget.presentSmall();
   else if (family === "large") await widget.presentLarge();
   else await widget.presentMedium();
+}
+
+/** Lar brukeren bla gjennom utseendene og velge ett. */
+async function chooseStyle(keys, stations) {
+  const ids = Object.keys(STYLES);
+  const current = getStyle();
+  while (true) {
+    const a = new Alert();
+    a.title = "Velg utseende";
+    a.message = `Nå: ${STYLES[current].name}\n${STYLES[current].description}`;
+    ids.forEach((id) => a.addAction(`${id === current ? "✓ " : ""}${STYLES[id].name}`));
+    a.addCancelAction("Tilbake");
+    const choice = await a.presentSheet();
+    if (choice === -1) return;
+    const id = ids[choice];
+    await preview(keys, stations, "medium", id);
+    const confirm = new Alert();
+    confirm.title = STYLES[id].name;
+    confirm.message = STYLES[id].description;
+    confirm.addAction("Bruk denne");
+    confirm.addAction("Se liten størrelse");
+    confirm.addCancelAction("Prøv en annen");
+    const answer = await confirm.presentAlert();
+    if (answer === 1) {
+      await preview(keys, stations, "small", id);
+      const again = new Alert();
+      again.title = STYLES[id].name;
+      again.addAction("Bruk denne");
+      again.addCancelAction("Prøv en annen");
+      if ((await again.presentAlert()) === -1) continue;
+    } else if (answer !== 0) continue;
+    saveStyle(id);
+    return;
+  }
 }
 
 async function runInApp() {
@@ -639,10 +971,11 @@ async function runInApp() {
     const stations = getStations();
     const menu = new Alert();
     menu.title = "Temp-widget";
-    menu.message = stations.map((s) => s.label).join(" · ");
+    menu.message = `${stations.map((s) => s.label).join(" · ")}\nUtseende: ${STYLES[getStyle()].name}`;
     menu.addAction("Vis liten widget");
     menu.addAction("Vis middels widget");
     menu.addAction("Vis stor widget");
+    menu.addAction("Velg utseende");
     menu.addAction("Velg / gi navn til stasjoner");
     menu.addAction("Endre Ecowitt-nøkler");
     menu.addCancelAction("Ferdig");
@@ -651,8 +984,9 @@ async function runInApp() {
     if (choice === 0) await preview(keys, stations, "small");
     if (choice === 1) await preview(keys, stations, "medium");
     if (choice === 2) await preview(keys, stations, "large");
-    if (choice === 3) await chooseStations(keys);
-    if (choice === 4) {
+    if (choice === 3) await chooseStyle(keys, stations);
+    if (choice === 4) await chooseStations(keys);
+    if (choice === 5) {
       const newKeys = await askForKeys();
       if (newKeys) await chooseStations(newKeys);
     }
@@ -669,9 +1003,9 @@ async function runInWidget() {
       `Åpne Scriptable og kjør «${Script.name()}» én gang for å legge inn nøkler.`
     );
   }
-  const shown = filterByParameter(stations, args.widgetParameter);
+  const { style, stations: shown } = parseParameter(stations, args.widgetParameter, getStyle());
   const results = await loadAll(keys, shown);
-  return buildWidget(results, family);
+  return buildWidget(results, family, style);
 }
 
 // ===========================================================================
