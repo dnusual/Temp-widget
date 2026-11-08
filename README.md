@@ -44,6 +44,8 @@ slutter den å virke etter 7 dager og må installeres på nytt.
 
 ## Oppsett (ca. 10 minutter)
 
+> Kortversjon for selve installasjonsdagen, med Mac og AirDrop: [OPPSETT.md](OPPSETT.md).
+
 ### 1. Hent nøkler fra ecowitt.net
 
 Ecowitt-appen lagrer målingene på ecowitt.net. Widgeten henter dem derfra med to nøkler.
@@ -77,9 +79,9 @@ Velg én av måtene:
 Trykk på **Temp** i Scriptable. Den spør om:
 
 1. **Application Key** og **API Key** fra steg 1 → lim inn → *Lagre*.
-2. **Hver stasjon** den finner på kontoen → gi den et kort navn (f.eks. **Hjemme** og
-   **Hytta**) og trykk *Vis*.
-3. **Hvilken som er hjemme.** Den står først med hus-ikon, hytta får hytte-ikon.
+2. **Hver stasjon** den finner på kontoen (**Skodje** og **Bjorli**) → behold navnet eller
+   skriv et kortere, og trykk *Vis*.
+3. **Hvilken som er hjemme** → velg **Skodje**. Den står først med hus-ikon, Bjorli får hytte-ikon.
 
 Deretter får du en meny der du kan se hvordan widgeten blir i ulike størrelser.
 Nøklene lagres i iPhonens nøkkelring, ikke i selve scriptet.
@@ -104,11 +106,11 @@ Velg *Temp* som script på samme måte som over.
 
 Skriv i feltet **Parameter** når du redigerer widgeten:
 
-- `Hytta` → viser bare den stasjonen. Fint for den runde låseskjerm-widgeten, eller for å
+- `Bjorli` → viser bare den stasjonen. Fint for den runde låseskjerm-widgeten, eller for å
   ha to små widgeter ved siden av hverandre.
 - `farge` (eller `lys`, `stor skrift`, `tabell`) → bruker det utseendet på akkurat denne
   widgeten, uansett hva som er valgt i menyen.
-- `Hytta, farge` → begge deler.
+- `Bjorli, farge` → begge deler.
 
 ---
 
@@ -119,7 +121,7 @@ Skriv i feltet **Parameter** når du redigerer widgeten:
 | «Ikke satt opp» | Scriptet er ikke kjørt i appen ennå. Gjør steg 4. |
 | «Ugyldig Application Key» / «Ugyldig API Key» | Nøkkelen er feil eller slettet. Åpne Temp i Scriptable → *Endre Ecowitt-nøkler*. |
 | «Ukjent stasjon (MAC/IMEI)» | Stasjonen er fjernet eller byttet. Åpne Temp → *Velg / gi navn til stasjoner*. |
-| Oransje tekst «x t siden» | Stasjonen har ikke sendt data på en stund (strøm eller nett nede på hytta?). |
+| Oransje tekst «x t siden» | Stasjonen har ikke sendt data på en stund (strøm eller nett nede på Bjorli?). |
 | «· offline» | Ecowitt svarte ikke nå; viser siste kjente verdi. |
 | Oppdaterer sjelden | iOS bestemmer hvor ofte widgeter oppdateres, typisk hvert 15.–30. minutt. Trykk på widgeten for ferske tall. |
 

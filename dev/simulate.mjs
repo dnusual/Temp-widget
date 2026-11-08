@@ -6,7 +6,7 @@
 //                                    → kjører mot de ekte stasjonene i stedet
 //
 // Scenariene sjekker at scriptet kjører uten feil for alle widget-størrelser,
-// at feil hos Ecowitt håndteres, og at bufret data brukes når hytta er offline.
+// at feil hos Ecowitt håndteres, og at bufret data brukes når Bjorli er offline.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -33,8 +33,8 @@ const DEVICES = {
     totalPage: 1,
     pageNum: 1,
     list: [
-      { id: 1, name: "GW2000 Hjem", mac: "AA:BB:CC:00:00:01", type: 1, stationtype: "GW2000A" },
-      { id: 2, name: "Hytta Geilo", mac: "AA:BB:CC:00:00:02", type: 1, stationtype: "GW1100" },
+      { id: 1, name: "Skodje", mac: "AA:BB:CC:00:00:01", type: 1, stationtype: "GW2000A" },
+      { id: 2, name: "Bjorli", mac: "AA:BB:CC:00:00:02", type: 1, stationtype: "GW1100" },
     ],
   },
 };
@@ -323,16 +323,16 @@ const normal = {
     runsInWidget: false, keychain, docs, responses: normal,
     alerts: [
       { expectTitle: /nøkler/, fields: ["  app-123 ", "api-456"], choice: 0 },
-      { expectTitle: /GW2000/, fields: ["Hjemme"], choice: 0 },
-      { expectTitle: /Hytta/, fields: ["Hytta"], choice: 0 },
-      { expectTitle: /hjemme/, choice: 1 }, // Hytta er hjemme → skal flyttes først
+      { expectTitle: /Skodje/, fields: ["Skodje"], choice: 0 },
+      { expectTitle: /Bjorli/, fields: ["Bjorli"], choice: 0 },
+      { expectTitle: /hjemme/, choice: 1 }, // velger Bjorli som hjemme → skal flyttes først
       { expectTitle: /Temp-widget/, choice: 1 }, // vis middels
       { expectTitle: /Temp-widget/, choice: -1 }, // ferdig
     ],
   });
   assert.equal(keychain[APP], "app-123", "nøkkel skal trimmes");
   const saved = JSON.parse(keychain[STATIONS]);
-  assert.deepEqual(saved.map((s) => s.label), ["Hytta", "Hjemme"]);
+  assert.deepEqual(saved.map((s) => s.label), ["Bjorli", "Skodje"]);
   assert.deepEqual(saved.map((s) => s.icon), ["house.fill", "house.lodge.fill"]);
   assert.equal(ctx.presented[0].size, "medium");
   assert.ok(ctx.requests.some((u) => u.includes("temp_unitid=1")), "skal be om °C");
@@ -343,8 +343,8 @@ const configured = () => ({
   [APP]: "app-123",
   [KEY]: "api-456",
   [STATIONS]: JSON.stringify([
-    { id: "AA:BB:CC:00:00:01", label: "Hjemme", mac: "AA:BB:CC:00:00:01", icon: "house.fill" },
-    { id: "AA:BB:CC:00:00:02", label: "Hytta", mac: "AA:BB:CC:00:00:02", icon: "house.lodge.fill" },
+    { id: "AA:BB:CC:00:00:01", label: "Skodje", mac: "AA:BB:CC:00:00:01", icon: "house.fill" },
+    { id: "AA:BB:CC:00:00:02", label: "Bjorli", mac: "AA:BB:CC:00:00:02", icon: "house.lodge.fill" },
   ]),
 });
 
@@ -359,24 +359,24 @@ for (const family of Object.keys(SIZES)) {
   console.log(`✓ ${family}: ${all}`);
 }
 
-// 3. Hytta offline: ett vellykket kall først (fyller cache), så feil → bufret verdi vises som offline
+// 3. Bjorli offline: ett vellykket kall først (fyller cache), så feil → bufret verdi vises som offline
 {
   const failing = { ...normal, "device/real_time": (q) => (q.get("mac").endsWith("02") ? new Error("The request timed out.") : normal["device/real_time"](q)) };
   const ctx = await run({ runsInWidget: true, family: "medium", keychain: configured(), docs, responses: failing });
   const all = texts(ctx.widget).join(" | ");
   assert.match(all, /−7,0°/, "bufret hyttetemp skal vises");
   assert.match(all, /offline/);
-  previews.push(renderWidget(ctx.widget, "medium", "medium – hytta offline (bufret verdi)"));
+  previews.push(renderWidget(ctx.widget, "medium", "medium – Bjorli offline (bufret verdi)"));
   console.log(`✓ offline med cache: ${all}`);
 }
 
-// 4. Gammel data fra stasjonen (f.eks. strømbrudd på hytta i 5 timer)
+// 4. Gammel data fra stasjonen (f.eks. strømbrudd på Bjorli i 5 timer)
 {
   const stale = { ...normal, "device/real_time": (q) => (q.get("mac").endsWith("02") ? realtime(-2.5, 3.1, { ageMin: 300 }) : normal["device/real_time"](q)) };
   const ctx = await run({ runsInWidget: true, family: "small", keychain: configured(), docs, responses: stale });
   const all = texts(ctx.widget).join(" | ");
   assert.match(all, /5 t siden/);
-  previews.push(renderWidget(ctx.widget, "small", "small – gamle data fra hytta"));
+  previews.push(renderWidget(ctx.widget, "small", "small – gamle data fra Bjorli"));
   console.log(`✓ gamle data: ${all}`);
 }
 
@@ -398,13 +398,13 @@ for (const family of Object.keys(SIZES)) {
   console.log("✓ ikke satt opp");
 }
 
-// 7. Widget-parameter «hytta» viser bare hytta, med hytte-ikon
+// 7. Widget-parameter «bjorli» viser bare Bjorli, med hytte-ikon
 {
-  const ctx = await run({ runsInWidget: true, family: "accessoryCircular", parameter: "hytta", keychain: configured(), docs, responses: normal });
+  const ctx = await run({ runsInWidget: true, family: "accessoryCircular", parameter: "bjorli", keychain: configured(), docs, responses: normal });
   const all = texts(ctx.widget).join(" | ");
   assert.equal(all, "−7°");
   assert.equal(ctx.requests.length, 1, "skal bare hente én stasjon");
-  previews.push(renderWidget(ctx.widget, "accessoryCircular", "rund – parameter «Hytta»"));
+  previews.push(renderWidget(ctx.widget, "accessoryCircular", "rund – parameter «Bjorli»"));
   console.log(`✓ parameter: ${all}`);
 }
 
@@ -434,11 +434,11 @@ for (const style of ["lys", "stor", "farge", "tabell"]) {
     previews.push(renderWidget(ctx.widget, family, `${style} – ${family}`));
     console.log(`✓ ${style}/${family}: ${all}`);
   }
-  // …og med hytta offline, så fargene for gamle data er med
+  // …og med Bjorli offline, så fargene for gamle data er med
   const failing = { ...normal, "device/real_time": (q) => (q.get("mac").endsWith("02") ? new Error("timeout") : normal["device/real_time"](q)) };
   const ctx = await run({ runsInWidget: true, family: "medium", parameter: style, keychain: configured(), docs, responses: failing });
   assert.match(texts(ctx.widget).join(" "), /offline/, `${style}: offline-status mangler`);
-  previews.push(renderWidget(ctx.widget, "medium", `${style} – medium, hytta offline`));
+  previews.push(renderWidget(ctx.widget, "medium", `${style} – medium, Bjorli offline`));
 }
 
 // 11. Utseende lagret i nøkkelringen brukes når parameteren er tom; parameter kan kombinere stasjon + utseende
@@ -446,14 +446,14 @@ for (const style of ["lys", "stor", "farge", "tabell"]) {
   const kc = { ...configured(), "tempwidget.style": "farge" };
   const a = await run({ runsInWidget: true, family: "small", keychain: kc, docs, responses: normal });
   assert.ok(a.widget.backgroundColor && a.widget.backgroundColor.hex === "#E9EEF4", "farge-stil skal gi lys flisbakgrunn");
-  const b = await run({ runsInWidget: true, family: "small", parameter: "Hytta, stor skrift", keychain: kc, docs, responses: normal });
+  const b = await run({ runsInWidget: true, family: "small", parameter: "Bjorli, stor skrift", keychain: kc, docs, responses: normal });
   const all = texts(b.widget).join(" | ");
-  assert.equal(b.requests.length, 1, "bare hytta skal hentes");
+  assert.equal(b.requests.length, 1, "bare Bjorli skal hentes");
   assert.equal(b.widget.backgroundColor.hex, "#FFFFFF", "«stor skrift» skal overstyre lagret stil");
-  previews.push(renderWidget(b.widget, "small", "small – parameter «Hytta, stor skrift»"));
-  const c = await run({ runsInWidget: true, family: "medium", parameter: "Hytta", keychain: kc, docs, responses: normal });
+  previews.push(renderWidget(b.widget, "small", "small – parameter «Bjorli, stor skrift»"));
+  const c = await run({ runsInWidget: true, family: "medium", parameter: "Bjorli", keychain: kc, docs, responses: normal });
   assert.ok(c.widget.backgroundGradient, "én stasjon i farge-stil skal fylle hele widgeten");
-  previews.push(renderWidget(c.widget, "medium", "farge – medium, bare hytta"));
+  previews.push(renderWidget(c.widget, "medium", "farge – medium, bare Bjorli"));
   console.log(`✓ stil fra nøkkelring + parameter: ${all}`);
 }
 
