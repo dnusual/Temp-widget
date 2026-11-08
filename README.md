@@ -98,9 +98,19 @@ Nøklene lagres i iPhonens nøkkelring, ikke i selve scriptet.
 
 ### Låseskjermen (valgfritt)
 
+![Låseskjerm-widgetene](docs/laseskjerm.png)
+
 Hold inne låseskjermen → **Tilpass** → **Låseskjerm** → trykk på widgetfeltet under klokka →
-velg Scriptable. Den **rektangulære** viser begge stasjonene, den **runde** viser én.
-Velg *Temp* som script på samme måte som over.
+velg Scriptable. Det er tre varianter, og alle må få **Script: Temp** på samme måte som over:
+
+- **Rund (liten):** begge stasjonene, én linje hver med ikon og hele grader. Skriv `Bjorli`
+  i Parameter for en rund som viser bare den, med større tall. Det er plass til to runde
+  ved siden av den brede, eller fire runde.
+- **Bred (rektangulær):** begge stasjonene med desimal.
+- **Linje over klokka:** `Skodje 4°  Bjorli −7°`.
+
+Låseskjerm-widgeter er alltid svart/hvite (iOS bestemmer det), så utseendet fra menyen
+gjelder ikke der.
 
 ### Vise bare én stasjon, eller et annet utseende på én widget
 

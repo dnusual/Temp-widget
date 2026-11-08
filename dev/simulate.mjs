@@ -353,7 +353,7 @@ for (const family of Object.keys(SIZES)) {
   const ctx = await run({ runsInWidget: true, family, keychain: configured(), docs, responses: normal });
   assert.ok(ctx.widget, `${family}: ingen widget satt`);
   const all = texts(ctx.widget).join(" | ");
-  if (family !== "accessoryCircular") assert.match(all, /−7,0°|−7°/, `${family}: mangler hyttetemp: ${all}`);
+  assert.match(all, /−7,0°|−7°/, `${family}: mangler Bjorli-temp: ${all}`);
   assert.match(all, /4,3°|4°/, `${family}: mangler hjemmetemp: ${all}`);
   previews.push(renderWidget(ctx.widget, family, family));
   console.log(`✓ ${family}: ${all}`);

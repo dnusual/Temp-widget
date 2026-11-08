@@ -739,26 +739,61 @@ function buildInline(widget, results) {
   widget.addText(text);
 }
 
-/** Låseskjerm, rund: én stasjon (bruk parameter for å velge hvilken). */
+/**
+ * Låseskjerm, rund. Med to stasjoner: én linje per stasjon, med ikon.
+ * Med én stasjon (parameter «Bjorli»): ikon øverst og stort tall.
+ */
 function buildCircular(widget, results) {
   widget.addAccessoryWidgetBackground = true;
-  const result = results[0];
-  const r = result.reading;
-  const top = widget.addStack();
-  top.addSpacer();
-  const symbol = iconFor(result.station, 0);
-  if (symbol) {
-    const img = top.addImage(symbol.image);
-    img.imageSize = new Size(12, 12);
+  widget.setPadding(2, 2, 2, 2);
+  const shown = results.slice(0, 2);
+  const dim = (r, t) => {
+    if (!r.reading || r.error || isStale(r.reading)) t.textOpacity = 0.6;
+  };
+
+  if (shown.length === 1) {
+    const result = shown[0];
+    const r = result.reading;
+    const top = widget.addStack();
+    top.addSpacer();
+    const symbol = iconFor(result.station, 0);
+    if (symbol) {
+      const img = top.addImage(symbol.image);
+      img.imageSize = new Size(12, 12);
+    }
+    top.addSpacer();
+    const row = widget.addStack();
+    row.addSpacer();
+    const t = row.addText(formatTemp(r ? r.temp : null, 0));
+    t.font = Font.boldRoundedSystemFont(20);
+    t.minimumScaleFactor = 0.5;
+    t.lineLimit = 1;
+    dim(result, t);
+    row.addSpacer();
+    return;
   }
-  top.addSpacer();
-  const row = widget.addStack();
-  row.addSpacer();
-  const t = row.addText(formatTemp(r ? r.temp : null, 0));
-  t.font = Font.boldRoundedSystemFont(20);
-  t.minimumScaleFactor = 0.5;
-  t.lineLimit = 1;
-  row.addSpacer();
+
+  widget.addSpacer();
+  shown.forEach((result, i) => {
+    const r = result.reading;
+    const row = widget.addStack();
+    row.layoutHorizontally();
+    row.centerAlignContent();
+    row.spacing = 3;
+    row.addSpacer();
+    const symbol = iconFor(result.station, i);
+    if (symbol) {
+      const img = row.addImage(symbol.image);
+      img.imageSize = new Size(11, 11);
+    }
+    const t = row.addText(formatTemp(r ? r.temp : null, 0));
+    t.font = Font.boldRoundedSystemFont(16);
+    t.minimumScaleFactor = 0.6;
+    t.lineLimit = 1;
+    dim(result, t);
+    row.addSpacer();
+  });
+  widget.addSpacer();
 }
 
 function buildMessageWidget(title, message) {

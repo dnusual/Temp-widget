@@ -84,12 +84,20 @@ Trykk **Ferdig** for å gå ut av menyen.
 
 Dra den gjerne til første side, øverst, så han slipper å lete.
 
-### 6. Valgfritt: låseskjermen (2 min)
+### 6. Låseskjermen (3 min)
 
 Hold inne på låseskjermen (telefonen låst opp med Face ID, men ikke sveipet opp) →
-**Tilpass** → **Låseskjerm** → trykk på feltet **under klokka** → velg **Scriptable** → den
-brede (rektangulære). Trykk på den → **Script: Temp**. Den viser begge stasjonene, alltid i
-svart/hvitt. **Ferdig** → **Ferdig**.
+**Tilpass** → **Låseskjerm** → trykk på feltet **under klokka**. Der er det plass til fire
+små ruter; en bred widget tar to av dem. Forslag:
+
+1. Velg **Scriptable** i lista → trykk på den **lille runde** → den legger seg i feltet.
+   Trykk på den → **Script: Temp**. Den viser Skodje øverst og Bjorli nederst, hele grader.
+2. Vil han ha mer: legg til den **brede** også (Script: Temp). Den viser begge med desimal.
+3. Alternativ: to runde, én per sted. Legg til to runde, sett **Script: Temp** på begge, og
+   skriv `Skodje` i **Parameter** på den ene og `Bjorli` på den andre. Da får hver et stort tall.
+
+Låseskjerm-widgeter er alltid svart/hvite. Feltet **over klokka** kan også få Scriptable;
+da står det `Skodje 4°  Bjorli −7°` på én linje. **Ferdig** → **Ferdig**.
 
 ### 7. Vis ham før du går
 
